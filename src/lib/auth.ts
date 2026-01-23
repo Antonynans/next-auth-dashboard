@@ -8,7 +8,7 @@ const key = new TextEncoder().encode(secretKey);
 export interface SessionPayload {
   userId: string;
   email: string;
-  expiresAt: number;
+  expiresAt: Date;
 }
 
 // Encrypt session data into JWT
@@ -16,7 +16,7 @@ export async function encrypt(payload: SessionPayload): Promise<string> {
   return await new SignJWT(payload as unknown as Record<string, unknown>)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime(new Date(Date.now() + 60 * 1000))
+    .setExpirationTime('7d')
     .sign(key);
 }
 
@@ -34,13 +34,13 @@ export async function decrypt(token: string): Promise<SessionPayload | null> {
 
 // Create session cookie
 export async function createSession(userId: string, email: string) {
-  const expiresAt = Date.now() + 60 * 1000;
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
   const session = await encrypt({ userId, email, expiresAt });
 
   (await cookies()).set('session', session, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    expires: new Date(expiresAt),
+    expires: expiresAt,
     sameSite: 'lax',
     path: '/',
   });
@@ -72,7 +72,7 @@ export async function updateSession(request: NextRequest) {
     value: await encrypt(parsed),
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    expires: new Date(Date.now() + 60 * 1000),
+    expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     sameSite: 'lax',
     path: '/',
   });
