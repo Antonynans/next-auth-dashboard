@@ -1,13 +1,25 @@
 import { getSession } from '@/lib/auth';
 import { logout } from '@/app/actions/auth';
 import { redirect } from 'next/navigation';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
 export default async function DashboardPage() {
-  const session = await getSession();
+  // Check both custom session and NextAuth session
+  const customSession = await getSession();
+  const nextAuthSession = await getServerSession(authOptions);
+
+  const session = customSession || (nextAuthSession?.user ? {
+    userId: nextAuthSession.user.id,
+    email: nextAuthSession.user.email || '',
+    // expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+  } : null);
 
   if (!session) {
     redirect('/login');
   }
+
+  const isOAuthUser = !customSession && nextAuthSession;
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -33,19 +45,34 @@ export default async function DashboardPage() {
             Welcome, {session.email}!
           </h2>
           <div className="space-y-4">
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <p className="text-sm text-gray-600">User ID</p>
-              <p className="font-mono text-sm mt-1">{session.userId}</p>
-            </div>
+            {isOAuthUser ? (
+              <div className="bg-purple-50 p-4 rounded-lg border-2 border-purple-200">
+                <p className="text-sm text-gray-600">Login Method</p>
+                <p className="font-medium mt-1 flex items-center gap-2">
+                  <span>OAuth ({nextAuthSession?.user?.name || 'Social Login'})</span>
+                  <span className="text-xs bg-purple-200 text-purple-800 px-2 py-1 rounded">
+                    {nextAuthSession?.user?.email?.includes('google') ? 'Google' : 'GitHub'}
+                  </span>
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-600">User ID</p>
+                  <p className="font-mono text-sm mt-1">{session.userId}</p>
+                </div>
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-600">Session Expires</p>
+                  {/* <p className="font-medium mt-1">
+                    {new Date(session.expiresAt).toLocaleString()}
+                  </p> */}
+                </div>
+              </>
+            )}
+            
             <div className="bg-blue-50 p-4 rounded-lg">
               <p className="text-sm text-gray-600">Email</p>
               <p className="font-medium mt-1">{session.email}</p>
-            </div>
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <p className="text-sm text-gray-600">Session Expires</p>
-              <p className="font-medium mt-1">
-                {new Date(session.expiresAt).toLocaleString()}
-              </p>
             </div>
           </div>
 
@@ -54,8 +81,10 @@ export default async function DashboardPage() {
               🎉 Authentication Successful!
             </h3>
             <p className="text-green-700">
-              You are now logged in with a secure HTTP-only cookie. This session is protected
-              and will automatically refresh as you use the app.
+              {isOAuthUser 
+                ? 'You are logged in via OAuth. Your session is managed by NextAuth and will persist across browser sessions.'
+                : 'You are logged in with a secure HTTP-only cookie. This session is protected and will automatically refresh as you use the app.'
+              }
             </p>
           </div>
         </div>
